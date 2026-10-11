@@ -20,11 +20,43 @@ Built quick and dirty as a bridge until we have a better solution available, thi
 
 - Full climate control (temperature, HVAC mode, fan, swing)
 - Extra entities:
-  - Switches: Power, Quiet Fan, Swing Mode
+  - Switches: Power, Quiet Fan, Powerful (experimental, see below)
   - Select: HVAC Mode Fan Speed, Swing Mode
 
   - Sensors: Outdoor temperature, energy today, runtime today indoor temp, humidity
   - Sensor: Target temperature (Not programming only, not in UI, Null if not applicable due to HVAC Mode)
+  - Sensors: Compressor frequency (Hz), compressor load (% of a nominal 100 Hz, can exceed 100%), power (W), indoor fan speed (rpm)
+  - Diagnostic sensors: Current (A), supply voltage (V), outdoor fan speed (rpm), indoor/outdoor coil temperature, control target temperature, EEV position (disabled by default)
+    - Fan speed sensors carry `max_rpm` and `percent` attributes
+  - Binary sensor: Compressor running
+  - Diagnostic entities show as unavailable on models that don't report that value.
+
+### Powerful switch (experimental)
+The Powerful state is read from the unit and has been confirmed against a real unit. **Turning it on/off from Home Assistant has not been verified on firmware 2.8.0 yet.** The request and the unit's response are logged at `info` level so you can check them. The command is not sent while the unit is off. The unit cancels Powerful on its own after about 20 minutes, and it can't be combined with Econo / Comfort / Outdoor Quiet (the unit handles that itself).
+
+## Protocol notes (for contributors)
+All values come from the single poll of `/dsiot/multireq`; see `custom_components/local_daikin/dsiot.py` (`DIAGNOSTIC_PARAMS`) for the full path table.
+
+- `pv` is a little-endian, signed hex string: `"4100"` = 65, `"C0FF"` = -64.
+- `md.st` is a one-byte step multiplier. The high nibble is a signed 4-bit power of ten (`0x0`–`0x7` = 10^0…10^7, `0x8`–`0xF` = 10^-8…10^-1) and the low nibble is the mantissa. Examples: `245` (0xF5) = ×0.5, `241` = ×0.1, `225` = ×0.01, `17` = ×10, `2` = ×2, `1` = ×1. `st = 0` means a non-numeric value (enum, bitmask, ASCII) and must not be scaled.
+- `md.mx` / `md.mi` are the model's supported range, encoded the same way as `pv` (used for the fan `max_rpm`).
+
+| Value | Resource | Path |
+|---|---|---|
+| Compressor frequency | `adr_0200` | `e_1003/e_2006/p_04` |
+| Compressor running | `adr_0200` | `e_1003/e_2006/p_01` |
+| Power (×10 W) | `adr_0200` | `e_1003/e_A005/p_01` |
+| Current | `adr_0200` | `e_1003/e_A005/p_02` |
+| Supply voltage | `adr_0200` | `e_1003/e_A005/p_09` |
+| Indoor fan speed | `adr_0100` | `e_1002/e_2028/p_04` |
+| Outdoor fan speed | `adr_0200` | `e_1003/e_2008/p_01` |
+| Indoor coil temp | `adr_0100` | `e_1002/e_2029/p_02` |
+| Outdoor coil temp | `adr_0200` | `e_1003/e_2009/p_02` |
+| Control target temp | `adr_0100` | `e_1002/e_3003/p_0C` |
+| EEV position | `adr_0200` | `e_1003/e_2005/p_01` |
+| Powerful | `adr_0200` | `e_1003/e_3002/p_44` |
+
+Run the decoder tests (no Home Assistant install needed) with `pytest tests`.
 
 ## Notes
 - If upgrading from v0.0.5 (or earlier), you will need to delete the manual configuration in your `configuration.yaml` and reconfigure via the Home Assistant devices panel.
