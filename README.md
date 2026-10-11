@@ -20,7 +20,7 @@ Built quick and dirty as a bridge until we have a better solution available, thi
 
 - Full climate control (temperature, HVAC mode, fan, swing)
 - Extra entities:
-  - Switches: Power, Quiet Fan, Powerful (experimental, see below)
+  - Switches: Power, Quiet Fan, Powerful (see below)
   - Select: HVAC Mode Fan Speed, Swing Mode
 
   - Sensors: Outdoor temperature, energy today, runtime today indoor temp, humidity
@@ -31,8 +31,8 @@ Built quick and dirty as a bridge until we have a better solution available, thi
   - Binary sensor: Compressor running
   - Diagnostic entities show as unavailable on models that don't report that value.
 
-### Powerful switch (experimental)
-The Powerful state is read from the unit and has been confirmed against a real unit. **Turning it on/off from Home Assistant has not been verified on firmware 2.8.0 yet.** The request and the unit's response are logged at `info` level so you can check them. The command is not sent while the unit is off. The unit cancels Powerful on its own after about 20 minutes, and it can't be combined with Econo / Comfort / Outdoor Quiet (the unit handles that itself).
+### Powerful switch
+Reading and writing Powerful (`p_44`) have been confirmed on a firmware 2.8.0 unit: the unit accepts the command (`rsc` 2004), `p_44` follows, and the indoor fan speeds up while it is on. Each command and the unit's response are logged at `info` level. The command is not sent while the unit is off. The unit cancels Powerful on its own after about 20 minutes, and it can't be combined with Econo / Comfort / Outdoor Quiet (the unit handles that itself).
 
 ## Protocol notes (for contributors)
 All values come from the single poll of `/dsiot/multireq`; see `custom_components/local_daikin/dsiot.py` (`DIAGNOSTIC_PARAMS`) for the full path table.

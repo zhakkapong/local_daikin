@@ -128,7 +128,7 @@ class DaikinQuietFanSwitch(SwitchEntity):
 
 
 class DaikinPowerfulSwitch(SwitchEntity):
-    """Powerful mode (e_1003/e_3002/p_44). Reading is confirmed; writing is experimental."""
+    """Powerful mode (e_1003/e_3002/p_44); read and write confirmed on fw 2.8.0."""
 
     def __init__(self, hass, entry_id, ip):
         self._hass = hass
