@@ -8,6 +8,7 @@ from custom_components.local_daikin.dsiot import (
     decode_number,
     extract_diagnostics,
     find_param,
+    powerful_request,
     step_from_st,
 )
 
@@ -122,3 +123,20 @@ def test_duplicate_entity_names_are_all_searched():
 def test_compressor_load_is_not_clamped():
     assert compressor_load_percent(112) == 112.0
     assert compressor_load_percent(None) is None
+
+
+def test_powerful_request_payload():
+    assert powerful_request(True) == {
+        "requests": [
+            {
+                "op": 3,
+                "pc": {
+                    "pn": "dgc_status",
+                    "pch": [{"pn": "e_1003", "pch": [{"pn": "e_3002", "pch": [{"pn": "p_44", "pv": "01"}]}]}],
+                },
+                "to": "/dsiot/edge/adr_0200.dgc_status",
+            }
+        ]
+    }
+    off = powerful_request(False)
+    assert off["requests"][0]["pc"]["pch"][0]["pch"][0]["pch"][0] == {"pn": "p_44", "pv": "00"}

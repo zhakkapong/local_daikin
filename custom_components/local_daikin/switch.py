@@ -12,6 +12,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities([
         DaikinPowerSwitch(hass, entry.entry_id, entry.data["ip_address"]),
         DaikinQuietFanSwitch(hass, entry.entry_id, entry.data["ip_address"]),
+        DaikinPowerfulSwitch(hass, entry.entry_id, entry.data["ip_address"]),
     ])
 
 
@@ -111,6 +112,62 @@ class DaikinQuietFanSwitch(SwitchEntity):
             return
         entity.set_fan_mode("Auto")
         self._state = False
+        self.schedule_update_ha_state(force_refresh=True)
+
+    @property
+    def is_on(self):
+        return self._state
+
+    @property
+    def device_info(self):
+        return DeviceInfo(
+            identifiers={("local_daikin", self._ip)},
+            name="Local Daikin AC",
+            manufacturer="Daikin"
+        )
+
+
+class DaikinPowerfulSwitch(SwitchEntity):
+    """Powerful mode (e_1003/e_3002/p_44). Reading is confirmed; writing is experimental."""
+
+    def __init__(self, hass, entry_id, ip):
+        self._hass = hass
+        self._entry_id = entry_id
+        self._ip = ip
+        self._state = None
+        self._attr_name = f"Daikin Powerful ({ip})"
+        self._attr_unique_id = f"daikin_powerful_{ip}"
+        self._attr_icon = "mdi:rocket-launch"
+        self._attr_should_poll = True
+
+    def _get_climate_entity(self):
+        data = self._hass.data.get("local_daikin", {}).get(self._entry_id, {})
+        return data.get("climate_entity")
+
+    @property
+    def available(self) -> bool:
+        entity = self._get_climate_entity()
+        return entity is not None and entity.available and self._state is not None
+
+    def update(self):
+        """Read cached state from climate entity — no extra HTTP call."""
+        entity = self._get_climate_entity()
+        if entity is None:
+            return
+        self._state = entity.diagnostics.get("powerful")
+
+    def turn_on(self, **kwargs):
+        entity = self._get_climate_entity()
+        if entity is None:
+            return
+        entity.set_powerful(True)
+        self.schedule_update_ha_state(force_refresh=True)
+
+    def turn_off(self, **kwargs):
+        entity = self._get_climate_entity()
+        if entity is None:
+            return
+        entity.set_powerful(False)
         self.schedule_update_ha_state(force_refresh=True)
 
     @property

@@ -237,3 +237,11 @@ class DaikinRequest:
                 entry = entry[-1]['pch']
             entry.append(attribute.format())
         return payload
+
+
+def powerful_request(enabled: bool) -> dict:
+    """Payload toggling Powerful mode (outdoor e_3002/p_44)."""
+    attribute = DaikinAttribute(
+        "p_44", "01" if enabled else "00", ["e_1003", "e_3002"], "/dsiot/edge/" + OUTDOOR
+    )
+    return DaikinRequest([attribute]).serialize()

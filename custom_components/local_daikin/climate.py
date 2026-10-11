@@ -18,7 +18,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 
 from datetime import timedelta
 
-from .dsiot import DaikinAttribute, DaikinRequest, extract_diagnostics
+from .dsiot import DaikinAttribute, DaikinRequest, extract_diagnostics, powerful_request
 
 SCAN_INTERVAL = timedelta(seconds=60)
 
@@ -420,6 +420,22 @@ class LocalDaikin(ClimateEntity):
     def turn_on(self):
         _LOGGER.info("Turned on")
         self._update_state(True)
+
+    def set_powerful(self, enabled: bool):
+        """Toggle Powerful mode. Experimental: the write path is unverified on fw 2.8.0.
+
+        The unit cancels Powerful by itself after ~20 minutes and resolves
+        conflicts with Econo/Comfort/Outdoor Quiet on its own.
+        """
+        if self.hvac_mode == HVACMode.OFF:
+            _LOGGER.warning("Daikin %s: unit is off, not sending Powerful=%s", self._ip, enabled)
+            return
+        request = powerful_request(enabled)
+        _LOGGER.info("Daikin %s: sending Powerful=%s (experimental) request=%s", self._ip, enabled, request)
+        # _send_attribute logs the raw response at info and raises if rejected.
+        self._send_attribute(request)
+        _LOGGER.info("Daikin %s: Powerful=%s accepted by unit", self._ip, enabled)
+        self._diagnostics["powerful"] = enabled  # optimistic; next poll confirms
 
     def get_swing_state(self, data: dict) -> str:
 
