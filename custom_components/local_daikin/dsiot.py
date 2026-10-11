@@ -10,6 +10,7 @@ non-numeric value (enum, bitmask, ASCII) that must not be scaled.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from typing import Any, Optional, Tuple
 
 _LOGGER = logging.getLogger(__name__)
@@ -179,3 +180,60 @@ def percent_of(value: Optional[float], maximum: Optional[float]) -> Optional[flo
     if value is None or not maximum:
         return None
     return round(value / maximum * 100, 1)
+
+
+@dataclass
+class DaikinAttribute:
+    name: str
+    value: float
+    path: list[str]
+    to: str
+
+    def format(self) -> str:
+        return {"pn": self.name, "pv": self.value}
+
+
+@dataclass
+class DaikinRequest:
+    attributes: list[DaikinAttribute] = field(default_factory=list)
+
+
+    def serialize(self, payload=None) -> dict:
+        if payload is None:
+            payload = {
+                'requests' : []
+            }
+
+        def get_existing_index(name: str, children: list[dict]) -> int:
+            for index, child in enumerate(children):
+                if child.get("pn") == name:
+                    return index
+            return -1
+        
+        def get_existing_to(to: str, requests: list[dict]) -> bool:
+            for request in requests:
+                this_to = request.get("to")
+                if this_to == to:
+                    return request
+            return None
+
+        for attribute in self.attributes:
+            to = get_existing_to(attribute.to, payload['requests'])
+            if to is None:
+                payload['requests'].append({
+                    'op': 3,
+                    'pc' : {
+                        "pn" : "dgc_status",
+                        "pch" : []
+                    },
+                    "to": attribute.to
+                })
+                to = payload['requests'][-1]
+            entry = to['pc']['pch']
+            for pn in attribute.path:
+                index = get_existing_index(pn, entry)
+                if index == -1:
+                    entry.append({"pn": pn, "pch": []})
+                entry = entry[-1]['pch']
+            entry.append(attribute.format())
+        return payload
