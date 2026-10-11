@@ -4,6 +4,14 @@ Built quick and dirty as a bridge until we have a better solution available, thi
 
 ## 🔧 Installation
 
+This is a fork of [Apoc182/local_daikin](https://github.com/Apoc182/local_daikin) that adds diagnostic sensors and a Powerful switch. It uses the same `local_daikin` domain, so it replaces the original in place: existing config entries and entity IDs are kept.
+
+### HACS
+1. HACS → ⋮ → **Custom repositories** → add `https://github.com/zhakkapong/local_daikin`, type **Integration**.
+2. If the original Local Daikin is installed through HACS, remove it there first and download this one right after. Don't restart in between: the config entry stays, only the files are swapped.
+3. Download **Local Daikin** from this repository and restart Home Assistant.
+
+### Manual
 1. Copy the `local_daikin` folder into your Home Assistant `custom_components` directory:
    ```
    <config>/custom_components/local_daikin/
