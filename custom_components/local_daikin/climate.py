@@ -147,6 +147,8 @@ class LocalDaikin(ClimateEntity):
         self._energy_today = None
         self._mac = None
         self._diagnostics = {}
+        # Mode the unit will resume on power-on; e_3001/p_01 is reported even while off.
+        self._last_on_mode = None
         self._max_temp = 30 # may need some logic to set this based on the device ID
         self._min_temp = 10
         self._available = True
@@ -420,6 +422,10 @@ class LocalDaikin(ClimateEntity):
     def turn_on(self):
         _LOGGER.info("Turned on")
         self._update_state(True)
+        # Optimistic: without this hvac_mode stays OFF until the next poll, so the
+        # Power switch flips back and mode-dependent commands are rejected.
+        if self._hvac_mode == HVACMode.OFF and self._last_on_mode is not None:
+            self._hvac_mode = self._last_on_mode
 
     def set_powerful(self, enabled: bool):
         """Toggle Powerful mode (confirmed on fw 2.8.0).
@@ -504,6 +510,8 @@ class LocalDaikin(ClimateEntity):
                 "e_3001",
                 "p_01",
             )
+            if mode_raw in MODE_MAP:
+                self._last_on_mode = MODE_MAP[mode_raw]
             if is_off is True:
                 self._hvac_mode = HVACMode.OFF
             elif mode_raw in MODE_MAP:
