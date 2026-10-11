@@ -2,10 +2,10 @@ import logging
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.components.climate.const import HVACMode
-from datetime import timedelta
+
+from .entity import DaikinClimateFollower
 
 _LOGGER = logging.getLogger(__name__)
-SCAN_INTERVAL = timedelta(seconds=60)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     _LOGGER.info("Setting up Daikin switches for %s", entry.data["ip_address"])
@@ -16,7 +16,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     ])
 
 
-class DaikinPowerSwitch(SwitchEntity):
+class DaikinPowerSwitch(DaikinClimateFollower, SwitchEntity):
     def __init__(self, hass, entry_id, ip):
         self._hass = hass
         self._entry_id = entry_id
@@ -24,7 +24,6 @@ class DaikinPowerSwitch(SwitchEntity):
         self._state = None
         self._attr_name = f"Daikin Power ({ip})"
         self._attr_unique_id = f"daikin_power_{ip}"
-        self._attr_should_poll = True
 
     def _get_climate_entity(self):
         data = self._hass.data.get("local_daikin", {}).get(self._entry_id, {})
@@ -72,7 +71,7 @@ class DaikinPowerSwitch(SwitchEntity):
             manufacturer="Daikin"
         )
 
-class DaikinQuietFanSwitch(SwitchEntity):
+class DaikinQuietFanSwitch(DaikinClimateFollower, SwitchEntity):
     def __init__(self, hass, entry_id, ip):
         self._hass = hass
         self._entry_id = entry_id
@@ -80,7 +79,6 @@ class DaikinQuietFanSwitch(SwitchEntity):
         self._state = None
         self._attr_name = f"Daikin Quiet Fan ({ip})"
         self._attr_unique_id = f"daikin_quietfan_{ip}"
-        self._attr_should_poll = True
 
     def _get_climate_entity(self):
         data = self._hass.data.get("local_daikin", {}).get(self._entry_id, {})
@@ -129,7 +127,7 @@ class DaikinQuietFanSwitch(SwitchEntity):
         )
 
 
-class DaikinPowerfulSwitch(SwitchEntity):
+class DaikinPowerfulSwitch(DaikinClimateFollower, SwitchEntity):
     """Powerful mode (e_1003/e_3002/p_44); read and write confirmed on fw 2.8.0."""
 
     def __init__(self, hass, entry_id, ip):
@@ -140,7 +138,6 @@ class DaikinPowerfulSwitch(SwitchEntity):
         self._attr_name = f"Daikin Powerful ({ip})"
         self._attr_unique_id = f"daikin_powerful_{ip}"
         self._attr_icon = "mdi:rocket-launch"
-        self._attr_should_poll = True
 
     def _get_climate_entity(self):
         data = self._hass.data.get("local_daikin", {}).get(self._entry_id, {})

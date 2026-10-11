@@ -18,9 +18,14 @@ from homeassistant.helpers.device_registry import DeviceInfo
 
 from datetime import timedelta
 
-from .dsiot import DaikinAttribute, DaikinRequest, extract_diagnostics, powerful_request
+from homeassistant.helpers.dispatcher import async_dispatcher_send, dispatcher_send
 
-SCAN_INTERVAL = timedelta(seconds=60)
+from .dsiot import DaikinAttribute, DaikinRequest, extract_diagnostics, powerful_request
+from .entity import climate_updated_signal
+
+# Only the climate entity talks to the unit (one POST per poll); every other
+# entity is refreshed from its cache via climate_updated_signal.
+SCAN_INTERVAL = timedelta(seconds=30)
 
 # Timeout for all HTTP requests to the Daikin unit (seconds)
 REQUEST_TIMEOUT = 10
@@ -98,7 +103,7 @@ REVERSE_FAN_MODE_MAP = {v: k for k, v in FAN_MODE_MAP.items()}
 
 async def async_setup_entry(hass, entry, async_add_entities):
     ip = entry.data["ip_address"]
-    entity = LocalDaikin(ip)
+    entity = LocalDaikin(ip, entry.entry_id)
 
     # Retry initial update with backoff — Daikin units can be slow after HA reboot
     import asyncio
@@ -132,7 +137,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities([entity])
 
 class LocalDaikin(ClimateEntity):
-    def __init__(self, ip_address: str):
+    def __init__(self, ip_address: str, entry_id: str = None):
         self._name = "Local Daikin"
         self.url = f"http://{ip_address}/dsiot/multireq"
         self._hvac_mode = HVACMode.OFF
@@ -154,6 +159,7 @@ class LocalDaikin(ClimateEntity):
         self._available = True
 
         self._ip = ip_address
+        self._entry_id = entry_id
         self._name = f"Local Daikin ({ip_address})"
         self._attr_unique_id = f"daikin_climate_{ip_address}"
             
@@ -181,6 +187,13 @@ class LocalDaikin(ClimateEntity):
     def available(self) -> bool:
         """Return True if the entity is available."""
         return self._available
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        # Platforms set up in parallel: entities added before this one would
+        # otherwise stay unavailable until the first scheduled poll.
+        if self._entry_id is not None:
+            async_dispatcher_send(self.hass, climate_updated_signal(self._entry_id))
 
     def set_hvac_mode(self, hvac_mode):
         _LOGGER.info("Set Hvac mode to " + str(hvac_mode))
@@ -471,7 +484,16 @@ class LocalDaikin(ClimateEntity):
 
 
     def update(self):
-        """Fetch new state data for the entity."""
+        """Fetch new state data, then let the dependent entities refresh from it."""
+        try:
+            self._fetch_state()
+        finally:
+            # hass is None during the initial fetch in async_setup_entry.
+            if self.hass is not None and self._entry_id is not None:
+                dispatcher_send(self.hass, climate_updated_signal(self._entry_id))
+
+    def _fetch_state(self):
+        """Poll the unit and parse the response into the cached attributes."""
         payload = {
             "requests": [
                 {"op": 2, "to": "/dsiot/edge/adr_0100.dgc_status?filter=pv,pt,md"},

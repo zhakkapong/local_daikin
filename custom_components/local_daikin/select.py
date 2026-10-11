@@ -1,12 +1,12 @@
 from homeassistant.components.select import SelectEntity
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.components.climate.const import HVACMode
-from datetime import timedelta
 import logging
 import asyncio
 
+from .entity import DaikinClimateFollower
+
 _LOGGER = logging.getLogger(__name__)
-SCAN_INTERVAL = timedelta(seconds=60)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     ip = entry.data["ip_address"]
@@ -29,7 +29,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         DaikinHvacModeSelect(hass, entry.entry_id, ip),
     ])
 
-class BaseDaikinSelect(SelectEntity):
+class BaseDaikinSelect(DaikinClimateFollower, SelectEntity):
     def __init__(self, hass, entry_id, ip, name_suffix, unique_id_suffix):
         self._hass = hass
         self._entry_id = entry_id
@@ -37,10 +37,10 @@ class BaseDaikinSelect(SelectEntity):
         self._climate = None
         self._attr_name = f"Daikin {name_suffix} ({ip})"
         self._attr_unique_id = f"daikin_{unique_id_suffix}_{ip}"
-        self._attr_should_poll = True
 
     async def async_added_to_hass(self):
         self._climate = self._hass.data["local_daikin"][self._entry_id].get("climate_entity")
+        await super().async_added_to_hass()
 
     def _get_climate(self):
         return self._climate

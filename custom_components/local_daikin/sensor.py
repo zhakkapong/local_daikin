@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import Any, Callable, Optional
 from homeassistant.components.sensor import (
     SensorEntity,
@@ -23,10 +22,9 @@ from homeassistant.helpers.device_registry import DeviceInfo
 import logging
 
 from .dsiot import compressor_load_percent, percent_of
+from .entity import DaikinClimateFollower
 
 _LOGGER = logging.getLogger(__name__)
-
-SCAN_INTERVAL = timedelta(seconds=60)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     ip = entry.data["ip_address"]
@@ -41,7 +39,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     ])
 
 
-class BaseDaikinSensor(SensorEntity):
+class BaseDaikinSensor(DaikinClimateFollower, SensorEntity):
     """Base sensor that reads cached state from the climate entity (no extra HTTP calls)."""
 
     def __init__(self, hass, entry_id, ip, name_suffix, unique_id_suffix):
@@ -100,7 +98,6 @@ class DaikinEnergyTodaySensor(BaseDaikinSensor):
         self._attr_native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
         self._attr_device_class = SensorDeviceClass.ENERGY
         self._attr_state_class = SensorStateClass.TOTAL_INCREASING
-        self._attr_should_poll = True
 
     def _read_state(self, entity):
         self._state = entity.extra_state_attributes.get("energy_today")

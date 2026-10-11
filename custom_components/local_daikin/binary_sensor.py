@@ -1,11 +1,10 @@
-from datetime import timedelta
 from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
 from homeassistant.helpers.device_registry import DeviceInfo
 import logging
 
-_LOGGER = logging.getLogger(__name__)
+from .entity import DaikinClimateFollower
 
-SCAN_INTERVAL = timedelta(seconds=60)
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -15,7 +14,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     ])
 
 
-class DaikinCompressorRunningSensor(BinarySensorEntity):
+class DaikinCompressorRunningSensor(DaikinClimateFollower, BinarySensorEntity):
     """Reads cached diagnostics from the climate entity (no extra HTTP calls)."""
 
     def __init__(self, hass, entry_id, ip):
