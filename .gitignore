@@ -1,2 +1,3 @@
 __pycache__
 cp_to_ha.sh
+.pytest_cache
