@@ -6,10 +6,21 @@ Built quick and dirty as a bridge until we have a better solution available, thi
 
 This is a fork of [Apoc182/local_daikin](https://github.com/Apoc182/local_daikin) that adds diagnostic sensors and a Powerful switch. It uses the same `local_daikin` domain, so it replaces the original in place: existing config entries and entity IDs are kept.
 
-### HACS
+### HACS (new install)
 1. HACS → ⋮ → **Custom repositories** → add `https://github.com/zhakkapong/local_daikin`, type **Integration**.
-2. If the original Local Daikin is installed through HACS, remove it there first and download this one right after. Don't restart in between: the config entry stays, only the files are swapped.
-3. Download **Local Daikin** from this repository and restart Home Assistant.
+2. Open **Local Daikin** from this repository → **Download**, then restart Home Assistant.
+3. **Settings → Devices & Services → Add Integration → Local Daikin** and enter the unit's IP address.
+
+### HACS (switching from Apoc182/local_daikin)
+Your configuration, entity IDs, names, areas and history are kept. You don't need to delete the integration from Devices & Services.
+
+1. Back up Home Assistant (**Settings → System → Backups**).
+2. HACS → ⋮ → **Custom repositories** → click the trash icon next to `Apoc182/local_daikin`. This only stops HACS tracking that repository; the installed files stay and the integration keeps running.
+3. In the same dialog, add `https://github.com/zhakkapong/local_daikin`, type **Integration**.
+4. Open **Local Daikin** from this repository → **Download**. HACS writes the new files over `custom_components/local_daikin/`.
+5. Restart Home Assistant. The existing entities should be back, plus the new sensors, the Powerful switch and Compressor Running.
+
+> ⚠️ Don't use **Remove** in a repository's ⋮ menu (or **Ignore** in the "Integration is configured" dialog that follows). That deletes the whole `custom_components/local_daikin/` folder.
 
 ### Manual
 1. Copy the `local_daikin` folder into your Home Assistant `custom_components` directory:
