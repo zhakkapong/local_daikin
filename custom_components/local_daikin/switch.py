@@ -47,7 +47,6 @@ class DaikinPowerSwitch(DaikinClimateFollower, SwitchEntity):
             return
         entity.turn_on()
         self._state = True
-        entity.schedule_update_ha_state()  # push the climate's optimistic state too
         self.schedule_update_ha_state(force_refresh=True)
 
     def turn_off(self, **kwargs):
@@ -56,7 +55,6 @@ class DaikinPowerSwitch(DaikinClimateFollower, SwitchEntity):
             return
         entity.turn_off()
         self._state = False
-        entity.schedule_update_ha_state()  # push the climate's optimistic state too
         self.schedule_update_ha_state(force_refresh=True)
 
     @property

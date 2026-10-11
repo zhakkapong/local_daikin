@@ -1,4 +1,6 @@
+import functools
 import logging
+import time
 import requests
 from requests.exceptions import RequestException
 from homeassistant.components.climate import ClimateEntity, ClimateEntityFeature
@@ -18,7 +20,9 @@ from homeassistant.helpers.device_registry import DeviceInfo
 
 from datetime import timedelta
 
+from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send, dispatcher_send
+from homeassistant.helpers.event import async_call_later
 
 from .dsiot import DaikinAttribute, DaikinRequest, extract_diagnostics, powerful_request
 from .entity import climate_updated_signal
@@ -30,11 +34,28 @@ SCAN_INTERVAL = timedelta(seconds=30)
 # Timeout for all HTTP requests to the Daikin unit (seconds)
 REQUEST_TIMEOUT = 10
 
+# After a command, re-read the unit this many seconds after the last one so the
+# UI confirms what the unit actually did. Polls that land sooner are skipped:
+# the unit may not reflect the command yet and would overwrite the optimistic state.
+COMMAND_REFRESH_DELAY = 2
+_SKIP_POLL_AFTER_COMMAND = COMMAND_REFRESH_DELAY - 0.5
+
 # Retry settings for initial setup
 SETUP_MAX_RETRIES = 3
 SETUP_RETRY_DELAY = 5  # seconds
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _command(func):
+    """Mark a method as a user command: show the optimistic state, then re-read the unit."""
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        finally:
+            self._command_finished()
+    return wrapper
 
 
 class HAFanMode(StrEnum):
@@ -154,6 +175,8 @@ class LocalDaikin(ClimateEntity):
         self._diagnostics = {}
         # Mode the unit will resume on power-on; e_3001/p_01 is reported even while off.
         self._last_on_mode = None
+        self._last_command_at = 0.0
+        self._cancel_command_refresh = None
         self._max_temp = 30 # may need some logic to set this based on the device ID
         self._min_temp = 10
         self._available = True
@@ -195,6 +218,38 @@ class LocalDaikin(ClimateEntity):
         if self._entry_id is not None:
             async_dispatcher_send(self.hass, climate_updated_signal(self._entry_id))
 
+    async def async_will_remove_from_hass(self):
+        if self._cancel_command_refresh is not None:
+            self._cancel_command_refresh()
+            self._cancel_command_refresh = None
+        await super().async_will_remove_from_hass()
+
+    def _command_finished(self):
+        """Called (from the executor) after every command, successful or not."""
+        self._last_command_at = time.monotonic()
+        if self.hass is not None:
+            self.hass.loop.call_soon_threadsafe(self._async_command_finished)
+
+    @callback
+    def _async_command_finished(self):
+        # Show the optimistic state on every entity right away...
+        self.async_write_ha_state()
+        if self._entry_id is not None:
+            async_dispatcher_send(self.hass, climate_updated_signal(self._entry_id))
+        # ...and read the real state once the unit has had time to apply it.
+        # Rapid commands are coalesced into one refresh after the last.
+        if self._cancel_command_refresh is not None:
+            self._cancel_command_refresh()
+        self._cancel_command_refresh = async_call_later(
+            self.hass, COMMAND_REFRESH_DELAY, self._async_command_refresh
+        )
+
+    @callback
+    def _async_command_refresh(self, _now):
+        self._cancel_command_refresh = None
+        self.async_schedule_update_ha_state(force_refresh=True)
+
+    @_command
     def set_hvac_mode(self, hvac_mode):
         _LOGGER.info("Set Hvac mode to " + str(hvac_mode))
 
@@ -272,6 +327,7 @@ class LocalDaikin(ClimateEntity):
     def should_poll(self):
         return True
 
+    @_command
     def set_fan_mode(self, fan_mode: str):
         mode = FAN_MODE_MAP[fan_mode]
         name = HVAC_MODE_TO_FAN_SPEED_ATTR_NAME.get(self.hvac_mode)
@@ -284,6 +340,7 @@ class LocalDaikin(ClimateEntity):
         else:
             self._fan_mode = HAFanMode.FAN_AUTO
 
+    @_command
     def set_swing_mode(self, swing_mode: str):
         if self.hvac_mode == HVACMode.OFF:
             return
@@ -391,6 +448,7 @@ class LocalDaikin(ClimateEntity):
         return temp / divisor
 
 
+    @_command
     def set_temperature(self, temperature: float, **kwargs):
         _LOGGER.info("Temp change to " + str(temperature) + " requested.")
         attr_name = HVAC_TO_TEMP_HEX.get(self.hvac_mode)
@@ -427,11 +485,13 @@ class LocalDaikin(ClimateEntity):
         attribute = DaikinAttribute("p_01", "00" if not state else "01", ["e_1002", "e_A002"], "/dsiot/edge/adr_0100.dgc_status")
         self._send_attribute(DaikinRequest([attribute]).serialize())
 
+    @_command
     def turn_off(self):
         _LOGGER.info("Turned off")
         self._hvac_mode = HVACMode.OFF  # optimistic
         self._update_state(False)
 
+    @_command
     def turn_on(self):
         _LOGGER.info("Turned on")
         self._update_state(True)
@@ -440,6 +500,7 @@ class LocalDaikin(ClimateEntity):
         if self._hvac_mode == HVACMode.OFF and self._last_on_mode is not None:
             self._hvac_mode = self._last_on_mode
 
+    @_command
     def set_powerful(self, enabled: bool):
         """Toggle Powerful mode (confirmed on fw 2.8.0).
 
@@ -485,6 +546,10 @@ class LocalDaikin(ClimateEntity):
 
     def update(self):
         """Fetch new state data, then let the dependent entities refresh from it."""
+        if time.monotonic() - self._last_command_at < _SKIP_POLL_AFTER_COMMAND:
+            # Includes HA's own refresh right after a climate service call.
+            _LOGGER.debug("Daikin %s: skipping poll right after a command", self._ip)
+            return
         try:
             self._fetch_state()
         finally:

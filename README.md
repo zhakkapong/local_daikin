@@ -81,6 +81,7 @@ Run the decoder tests (no Home Assistant install needed) with `pytest tests`.
 - If upgrading from v0.0.5 (or earlier), you will need to delete the manual configuration in your `configuration.yaml` and reconfigure via the Home Assistant devices panel.
 - Ensure your Daikin unit is on the same network as Home Assistant.
 - Communicates with the `/dsiot/multireq` endpoint on your device.
+- Polls the unit every 30 seconds (one request per poll; all entities refresh together). After any command, every entity shows the new state immediately, and the unit is read again 2 seconds later to confirm it (`SCAN_INTERVAL` and `COMMAND_REFRESH_DELAY` in `climate.py`).
 
 
 # Compatibility
